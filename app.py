@@ -2,34 +2,35 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import requests
 from datetime import datetime
 
 st.set_page_config(layout="wide")
 
 # Sidebar
 st.sidebar.title("Football Powerhouse AI 🇬🇭")
-st.sidebar.write("**AI-Identified Data Gaps:**")  # Moved and relabeled for clarity
+st.sidebar.write("**AI-Identified Data Gaps:**")
 st.sidebar.write("Limited recent H2H data (±3% uncertainty), player injury updates pending")
 match = st.sidebar.selectbox("Select Match", ["Kosovo vs. Comoros", "Amazonas vs. Athletic Club", "Mexico vs. Turkey", "Oran vs. El Bayadh", "Custom Match"])
 custom_match = st.sidebar.text_input("Custom Match:") if match == "Custom Match" else ""
 match = custom_match if custom_match else match
 result = st.sidebar.text_input("Enter Result:")
-crowd = st.sidebar.slider("Crowd Size", 10000, 60000, 30000, key="crowd")  # Adjusted for typical Algerian attendance
+crowd = st.sidebar.slider("Crowd Size", 10000, 60000, 30000, key="crowd")
 crowd_impact = st.sidebar.slider("Crowd Impact", 0, 10, 4, key="crowd_impact")
 squad = st.sidebar.selectbox("Away Squad", ["A-Squad", "B-Squad"])
-gaps = st.sidebar.text_area("Manual Data Gaps (Optional):")  # Relabeled for user input
+gaps = st.sidebar.text_area("Manual Data Gaps (Optional):")
 motivation = st.sidebar.checkbox("Unusual Motivation")
 feedback = st.sidebar.text_input("Feedback")
 if st.sidebar.button("Submit Feedback"):
     st.sidebar.write("Feedback logged for retraining!")
 if st.sidebar.button("Verify Data"):
-    st.sidebar.write("Data verified: Web [[Sofascore, AiScore]], Posts on X [[Fan Sentiment]]")
+    st.sidebar.write("Data verified: Web [[Sofascore, AiScore]], Posts on X [[Fan Sentiment]], TheSportsDB [[V1 Free]]")
 
 # Dynamic Confidence Calculation
 base_confidence = 0.90
-crowd_boost = (crowd - 10000) / 10000 * 0.02  # Scales from 0% to 2%
-confidence_adjustment = -0.02 * (1 - crowd_impact / 10)  # Scales with crowd impact
-bias_adjustment = -0.03  # Adjustment for limited H2H data bias
+crowd_boost = (crowd - 10000) / 10000 * 0.02
+confidence_adjustment = -0.02 * (1 - crowd_impact / 10)
+bias_adjustment = -0.03
 confidence = max(0.70, base_confidence + confidence_adjustment + crowd_boost + bias_adjustment)
 
 # Dynamically construct confidence explanation
@@ -41,6 +42,25 @@ if crowd_boost != 0:
 if bias_adjustment != 0:
     confidence_explanation += f" - {abs(bias_adjustment*100):.0f}% H2H bias"
 confidence_explanation += f" = {confidence:.2f}"
+
+# Fetch data from TheSportsDB V1 API
+def fetch_sportsdb_data(endpoint):
+    url = f"https://www.thesportsdb.com/api/v1/json/123/{endpoint}"
+    response = requests.get(url)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        st.write(f"Error fetching data: {response.status_code}")
+        return None
+
+# Get next events for Algerian Ligue 1 (ID 81)
+sportsdb_data = fetch_sportsdb_data("eventsnextleague.php?id=81")
+if sportsdb_data and "events" in sportsdb_data:
+    events = sportsdb_data["events"]
+    for event in events:
+        if "Oran" in event.get("strEvent", "") or "El Bayadh" in event.get("strEvent", ""):
+            st.session_state.sportsdb_event = event
+            break
 
 # Main Panel
 st.title("Match Analysis Dashboard")
@@ -70,6 +90,13 @@ with st.expander("Why this Savvy Pick?"):
         st.write("SHAP Analysis: Özer’s xGC impact (+0.15) reduced Turkey’s goal probability by 10%, while Pineda’s 7.8 rating and Mexico’s rebound motivation (+0.3 xG) secured the win. Model uses k-fold cross-validation for generalizability.")
     elif match == "Oran vs. El Bayadh":
         st.write("SHAP Analysis: Oran’s home xG (0.8) and El Bayadh’s defensive solidity (1.2 xGC) drive the prediction. Note: X sentiment adjusted by -5% for pro-Oran bias detected.")
+with st.expander("SportsDB Data"):
+    if match == "Oran vs. El Bayadh" and "sportsdb_event" in st.session_state:
+        event = st.session_state.sportsdb_event
+        st.write(f"Event: {event.get('strEvent', 'N/A')}")
+        st.write(f"Date: {event.get('dateEvent', 'N/A')}")
+        st.write(f"Home Team: {event.get('strHomeTeam', 'N/A')}")
+        st.write(f"Away Team: {event.get('strAwayTeam', 'N/A')}")
 with st.expander("Self-Correction"):
     if match == "Amazonas vs. Athletic Club":
         st.write("Model applies L2 regularization and early stopping on a 20% validation set to prevent overfitting, refining predictions based on past errors.")

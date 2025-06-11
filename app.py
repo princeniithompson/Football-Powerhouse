@@ -44,7 +44,7 @@ if bias_adjustment != 0:
 confidence_explanation += f" = {confidence:.2f}"
 
 # Fetch data from API-Football
-API_KEY = "c7435485e04dla0lc547ab8ce45a62ca"  # Your key
+API_KEY = "cb39e7da1d13e3c97c44965b60751c6a"  # Your new key
 def fetch_apifootball_data(endpoint):
     url = f"https://api-football-v1.p.rapidapi.com/v1/{endpoint}"
     headers = {
@@ -54,7 +54,9 @@ def fetch_apifootball_data(endpoint):
     try:
         response = requests.get(url, headers=headers, timeout=5)
         if response.status_code == 200:
-            return response.json().get("response", [])
+            data = response.json()
+            st.write("API Response:", data)  # Debug output
+            return data.get("response", [])
         else:
             st.write(f"API Error: {response.status_code} - {response.text}")
             return []

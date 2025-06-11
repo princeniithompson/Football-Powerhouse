@@ -46,20 +46,25 @@ confidence_explanation += f" = {confidence:.2f}"
 # Fetch data from TheSportsDB V1 API
 def fetch_sportsdb_data(endpoint):
     url = f"https://www.thesportsdb.com/api/v1/json/123/{endpoint}"
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        st.write(f"Error fetching data: {response.status_code}")
-        return None
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            return data.get("events", []) if "events" in data else []
+        else:
+            st.write(f"API Error: {response.status_code} - {response.text}")
+            return []
+    except requests.RequestException as e:
+        st.write(f"Request failed: {e}")
+        return []
 
-# Get next events for Algerian Ligue 1 (ID 81)
+# Get next events for Algerian Ligue 1 (ID 81) or match-specific data
 sportsdb_data = fetch_sportsdb_data("eventsnextleague.php?id=81")
-if sportsdb_data and "events" in sportsdb_data:
-    events = sportsdb_data["events"]
-    for event in events:
-        if "Oran" in event.get("strEvent", "") or "El Bayadh" in event.get("strEvent", ""):
-            st.session_state.sportsdb_event = event
+sportsdb_event = None
+if sportsdb_data and match == "Oran vs. El Bayadh":
+    for event in sportsdb_data:
+        if "Oran" in event.get("strEvent", "") and "El Bayadh" in event.get("strEvent", ""):
+            sportsdb_event = event
             break
 
 # Main Panel
@@ -91,12 +96,13 @@ with st.expander("Why this Savvy Pick?"):
     elif match == "Oran vs. El Bayadh":
         st.write("SHAP Analysis: Oran’s home xG (0.8) and El Bayadh’s defensive solidity (1.2 xGC) drive the prediction. Note: X sentiment adjusted by -5% for pro-Oran bias detected.")
 with st.expander("SportsDB Data"):
-    if match == "Oran vs. El Bayadh" and "sportsdb_event" in st.session_state:
-        event = st.session_state.sportsdb_event
-        st.write(f"Event: {event.get('strEvent', 'N/A')}")
-        st.write(f"Date: {event.get('dateEvent', 'N/A')}")
-        st.write(f"Home Team: {event.get('strHomeTeam', 'N/A')}")
-        st.write(f"Away Team: {event.get('strAwayTeam', 'N/A')}")
+    if match == "Oran vs. El Bayadh" and sportsdb_event:
+        st.write(f"Event: {sportsdb_event.get('strEvent', 'N/A')}")
+        st.write(f"Date: {sportsdb_event.get('dateEvent', 'N/A')}")
+        st.write(f"Home Team: {sportsdb_event.get('strHomeTeam', 'N/A')}")
+        st.write(f"Away Team: {sportsdb_event.get('strAwayTeam', 'N/A')}")
+    elif match == "Oran vs. El Bayadh":
+        st.write("No SportsDB data available. Check API status or upgrade to premium for live data.")
 with st.expander("Self-Correction"):
     if match == "Amazonas vs. Athletic Club":
         st.write("Model applies L2 regularization and early stopping on a 20% validation set to prevent overfitting, refining predictions based on past errors.")
